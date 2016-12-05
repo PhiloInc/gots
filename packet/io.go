@@ -28,7 +28,7 @@ import (
 	"bufio"
 	"io"
 
-	"github.com/Comcast/gots"
+	"github.com/Philoinc/gots"
 )
 
 // Sync finds the offset of the next packet sync byte and advances the reader

@@ -26,8 +26,8 @@ SOFTWARE.
 package scte35
 
 import (
-	"github.com/Comcast/gots"
-	"github.com/Comcast/gots/psi"
+	"github.com/Philoinc/gots"
+	"github.com/Philoinc/gots/psi"
 )
 
 type SpliceCommandType uint16

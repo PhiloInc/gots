@@ -27,8 +27,8 @@ package psi
 import (
 	"io"
 
-	"github.com/Comcast/gots"
-	"github.com/Comcast/gots/packet"
+	"github.com/Philoinc/gots"
+	"github.com/Philoinc/gots/packet"
 )
 
 const (

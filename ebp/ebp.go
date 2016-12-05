@@ -29,7 +29,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/Comcast/gots"
+	"github.com/Philoinc/gots"
 )
 
 var ebpEncoding = binary.BigEndian
