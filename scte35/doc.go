@@ -151,6 +151,9 @@ type SegmentationDescriptor interface {
 	SCTE35() SCTE35
 	// EventID returns the event id
 	EventID() uint32
+	// EventCancelIndicator returns whether the
+	// segmentation_event_cancel_indicator bit is set
+	EventCancelIndicator() bool
 	// TypeID returns the segmentation type for descriptor
 	TypeID() SegDescType
 	// IsOut returns true if a signal is an out
