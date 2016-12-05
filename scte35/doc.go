@@ -26,8 +26,8 @@ SOFTWARE.
 package scte35
 
 import (
-	"github.com/Comcast/gots"
-	"github.com/Comcast/gots/psi"
+	"github.com/Philoinc/gots"
+	"github.com/Philoinc/gots/psi"
 )
 
 type SpliceCommandType uint16
@@ -110,11 +110,39 @@ type SCTE35 interface {
 	PTS() gots.PTS
 	// Command returns the signal's splice command
 	Command() SpliceCommandType
+	// CommandInfo returns an object describing fields of the signal's splice
+	// command structure
+	CommandInfo() SpliceCommand
 	// Descriptors returns a slice of the signals SegmentationDescriptors sorted
 	// by descriptor weight (least important signals first)
 	Descriptors() []SegmentationDescriptor
 	// Data returns the raw data bytes of the scte signal
 	Data() []byte
+}
+
+type SpliceCommand interface {
+	CommandType() SpliceCommandType
+}
+
+type PTSCommand interface {
+	SpliceCommand
+	HasPTS() bool
+	PTS() gots.PTS
+}
+
+type TimeSignalCommand interface {
+	PTSCommand
+}
+
+type SpliceInsertCommand interface {
+	SpliceCommand
+	EventCancelIndicator() bool
+	OutOfNetworkIndicator() bool
+	EventID() uint32
+	HasPTS() bool
+	PTS() gots.PTS
+	HasDuration() bool
+	Duration() gots.PTS
 }
 
 // SegmentationDescriptor describes the segmentation descriptor interface.
@@ -123,6 +151,9 @@ type SegmentationDescriptor interface {
 	SCTE35() SCTE35
 	// EventID returns the event id
 	EventID() uint32
+	// EventCancelIndicator returns whether the
+	// segmentation_event_cancel_indicator bit is set
+	EventCancelIndicator() bool
 	// TypeID returns the segmentation type for descriptor
 	TypeID() SegDescType
 	// IsOut returns true if a signal is an out

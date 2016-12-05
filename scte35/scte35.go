@@ -28,19 +28,21 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/Comcast/gots"
-	"github.com/Comcast/gots/psi"
+	"github.com/Philoinc/gots"
+	"github.com/Philoinc/gots/psi"
 )
 
 // Descriptor tag types and identifiers - only segmentation descriptors are used for now
 const (
-	segDescTag = 0x02
-	segDescID  = 0x43554549
-	minDescLen = 15 // min desc len does not include descriptor tag or len
+	segDescTag    = 0x02
+	segDescID     = 0x43554549
+	minDescLen    = 5  // min desc len does not include descriptor tag or len
+	minSegDescLen = 15 // SegmentationDescriptor min len
 )
 
 type scte35 struct {
-	command     SpliceCommandType
+	commandType SpliceCommandType
+	commandInfo SpliceCommand
 	hasPTS      bool
 	pts         gots.PTS
 	descriptors []SegmentationDescriptor
@@ -86,48 +88,52 @@ func (s *scte35) parseTable(data []byte) error {
 		// skip cw_index, tier and spliceCommandLength
 		// since it can be 0xfff(unknown) so it's pretty much useless
 		buf.Next(4)
-		s.command = SpliceCommandType(readByte())
-		switch s.command {
-		case TimeSignal:
-			flags := readByte()
-			s.hasPTS = (flags & 0x80) == 0x80
-			if s.hasPTS {
-				// unread prev byte because it contains the top bit of the pts offset
-				err := buf.UnreadByte()
-				if err != nil {
-					return err
-				}
-				if buf.Len() < 11 {
-					return gots.ErrInvalidSCTE35Length
-				}
-				s.pts = uint40(buf.Next(5)) & 0x01ffffffff
-				// add the pts adjustment to get the real
-				// value, we won't need it anymore after that
-				s.pts += ptsAdjustment
+		s.commandType = SpliceCommandType(readByte())
+		switch s.commandType {
+		case TimeSignal, SpliceInsert:
+			var cmd PTSCommand
+			if s.commandType == TimeSignal {
+				cmd, err = parseTimeSignal(buf)
 			} else {
-				return gots.ErrSCTE35UnsupportedSpliceCommand
+				cmd, err = parseSpliceInsert(buf)
 			}
+			if err != nil {
+				return err
+			}
+			s.pts = cmd.PTS()
+			s.hasPTS = cmd.HasPTS()
+			s.commandInfo = cmd
 		case SpliceNull:
 		default:
 			return gots.ErrSCTE35UnsupportedSpliceCommand
 		}
+		// descriptor_loop_length 2 + CRC 4
+		if buf.Len() < 2+int(psi.CrcLen) {
+			return gots.ErrInvalidSCTE35Length
+		}
+		// add the pts adjustment to get the real
+		// value, we won't need it anymore after that
+		s.pts += ptsAdjustment
+		// parse descriptors
 		descLoopLen := binary.BigEndian.Uint16(buf.Next(2))
 		if buf.Len() < int(descLoopLen+psi.CrcLen) {
 			return gots.ErrInvalidSCTE35Length
 		}
 		for bytesRead := uint16(0); bytesRead < descLoopLen; {
-			d := &segmentationDescriptor{spliceInfo: s}
 			descTag := readByte()
 			descLen := readByte()
 			// Make sure a bad descriptorLen doesn't kill us
-			if descLoopLen-bytesRead-2 < uint16(descLen) || descLen < minDescLen {
+			isSegDesc := descTag == segDescTag
+			if descLoopLen-bytesRead-2 < uint16(descLen) || descLen < minDescLen ||
+				isSegDesc && descLen < minSegDescLen {
 				return gots.ErrInvalidSCTE35Length
 			}
-			if descTag != segDescTag {
+			if !isSegDesc {
 				// Not interested in descriptors that are not
 				// SegmentationDescriptors
 				buf.Next(int(descLen))
 			} else {
+				d := &segmentationDescriptor{spliceInfo: s}
 				err := d.parseDescriptor(buf.Next(int(descLen)))
 				if err != nil {
 					return err
@@ -153,7 +159,11 @@ func (s *scte35) PTS() gots.PTS {
 }
 
 func (s *scte35) Command() SpliceCommandType {
-	return s.command
+	return s.commandType
+}
+
+func (s *scte35) CommandInfo() SpliceCommand {
+	return s.commandInfo
 }
 
 func (s *scte35) Descriptors() []SegmentationDescriptor {
