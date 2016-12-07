@@ -143,6 +143,7 @@ type SpliceInsertCommand interface {
 	PTS() gots.PTS
 	HasDuration() bool
 	Duration() gots.PTS
+	AutoReturn() bool
 }
 
 // SegmentationDescriptor describes the segmentation descriptor interface.

@@ -69,6 +69,7 @@ type spliceInsert struct {
 	pts                   gots.PTS
 	hasDuration           bool
 	duration              gots.PTS
+	autoReturn            bool
 }
 
 func (c *spliceInsert) CommandType() SpliceCommandType {
@@ -149,10 +150,8 @@ func (c *spliceInsert) parse(buf *bytes.Buffer) error {
 			return gots.ErrInvalidSCTE35Length
 		}
 		// break_duration() structure:
-		//	auto_return
-		//  break_duration
-		_ = data[0] & 0x80
-		_ = uint40(data) & 0x01ffffffff
+		c.autoReturn = data[0]&0x80 == 0x80
+		c.duration = uint40(data) & 0x01ffffffff
 	}
 	// unique_program_id
 	binary.BigEndian.Uint16(buf.Next(2))
@@ -189,6 +188,10 @@ func (c *spliceInsert) HasDuration() bool {
 
 func (c *spliceInsert) Duration() gots.PTS {
 	return c.duration
+}
+
+func (c *spliceInsert) AutoReturn() bool {
+	return c.autoReturn
 }
 
 // parseSpliceTime parses a splice_time() structure and returns the values of
