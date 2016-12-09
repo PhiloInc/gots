@@ -121,6 +121,7 @@ func (c *spliceInsert) parse(buf *bytes.Buffer) error {
 		if !hasPTS {
 			return gots.ErrSCTE35UnsupportedSpliceCommand
 		}
+		c.hasPTS = hasPTS
 		c.pts = pts
 		if err != nil {
 			return err
