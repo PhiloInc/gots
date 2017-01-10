@@ -34,10 +34,8 @@ import (
 
 // Descriptor tag types and identifiers - only segmentation descriptors are used for now
 const (
-	segDescTag    = 0x02
-	segDescID     = 0x43554549
-	minDescLen    = 5  // min desc len does not include descriptor tag or len
-	minSegDescLen = 15 // SegmentationDescriptor min len
+	segDescTag = 0x02
+	segDescID  = 0x43554549
 )
 
 type scte35 struct {
@@ -91,7 +89,7 @@ func (s *scte35) parseTable(data []byte) error {
 		s.commandType = SpliceCommandType(readByte())
 		switch s.commandType {
 		case TimeSignal, SpliceInsert:
-			var cmd PTSCommand
+			var cmd SpliceCommand
 			if s.commandType == TimeSignal {
 				cmd, err = parseTimeSignal(buf)
 			} else {
@@ -100,7 +98,8 @@ func (s *scte35) parseTable(data []byte) error {
 			if err != nil {
 				return err
 			}
-			s.pts = cmd.PTS()
+			// add the pts adjustment to get the real value
+			s.pts = cmd.PTS() + ptsAdjustment
 			s.hasPTS = cmd.HasPTS()
 			s.commandInfo = cmd
 		case SpliceNull:
@@ -111,9 +110,6 @@ func (s *scte35) parseTable(data []byte) error {
 		if buf.Len() < 2+int(psi.CrcLen) {
 			return gots.ErrInvalidSCTE35Length
 		}
-		// add the pts adjustment to get the real
-		// value, we won't need it anymore after that
-		s.pts += ptsAdjustment
 		// parse descriptors
 		descLoopLen := binary.BigEndian.Uint16(buf.Next(2))
 		if buf.Len() < int(descLoopLen+psi.CrcLen) {
@@ -123,12 +119,10 @@ func (s *scte35) parseTable(data []byte) error {
 			descTag := readByte()
 			descLen := readByte()
 			// Make sure a bad descriptorLen doesn't kill us
-			isSegDesc := descTag == segDescTag
-			if descLoopLen-bytesRead-2 < uint16(descLen) || descLen < minDescLen ||
-				isSegDesc && descLen < minSegDescLen {
+			if descLoopLen-bytesRead-2 < uint16(descLen) {
 				return gots.ErrInvalidSCTE35Length
 			}
-			if !isSegDesc {
+			if descTag != segDescTag {
 				// Not interested in descriptors that are not
 				// SegmentationDescriptors
 				buf.Next(int(descLen))

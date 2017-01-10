@@ -35,7 +35,6 @@ type segmentationDescriptor struct {
 	// common fields we care about for sorting/identifying, but is not necessarily needed for users of this lib
 	typeID               SegDescType
 	eventID              uint32
-	eventCancelIndicator bool
 	hasDuration          bool
 	duration             gots.PTS
 	upidType             SegUPIDType
@@ -43,6 +42,7 @@ type segmentationDescriptor struct {
 	segNum               uint8
 	segsExpected         uint8
 	spliceInfo           SCTE35
+	eventCancelIndicator bool
 }
 
 type segCloseType uint8
@@ -108,7 +108,7 @@ func (d *segmentationDescriptor) parseDescriptor(data []byte) error {
 		return gots.ErrSCTE35InvalidDescriptorID
 	}
 	d.eventID = binary.BigEndian.Uint32(buf.Next(4))
-	d.eventCancelIndicator = readByte()&0x80 == 1
+	d.eventCancelIndicator = readByte()&0x80>>7 != 0
 	if !d.eventCancelIndicator {
 		flags := readByte()
 		if flags&0x80 == 0 {
@@ -150,12 +150,12 @@ func (d *segmentationDescriptor) EventID() uint32 {
 	return d.eventID
 }
 
-func (d *segmentationDescriptor) EventCancelIndicator() bool {
-	return d.eventCancelIndicator
-}
-
 func (d *segmentationDescriptor) TypeID() SegDescType {
 	return d.typeID
+}
+
+func (d *segmentationDescriptor) IsEventCanceled() bool {
+	return d.eventCancelIndicator
 }
 
 func (d *segmentationDescriptor) IsOut() bool {

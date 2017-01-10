@@ -68,13 +68,44 @@ var testScte3 = []byte{
 func TestSpliceInsertSignal(t *testing.T) {
 	base64Bytes, _ := base64.StdEncoding.DecodeString("APwwLwAAz6l5ggD///8FYgAgAn/v/1jt40T+AHuYoAM1AAAACgAIQ1VFSQA4MjFRxjDp")
 
-	s, err := NewSCTE35(base64Bytes)
-
-	if err != gots.ErrSCTE35UnsupportedSpliceCommand {
-		t.Error("SpliceInsert does not return splice command not supported err")
+	s1, err := NewSCTE35(base64Bytes)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
 	}
-	if s != nil {
-		t.Error("NewSCTE35() of splice insert signal returns non-nil signal")
+
+	if s1.Command() != SpliceInsert {
+		t.Error("Expected parsed command to be a SpliceInsert, it was not")
+	}
+
+	s := s1.CommandInfo().(SpliceInsertCommand)
+
+	if s.IsEventCanceled() != false {
+		t.Errorf("Unexpected value for IsEventCanceled: %v", s.IsEventCanceled())
+	}
+	if s.IsOut() != true {
+		t.Errorf("Unexpected value for IsOut: %v", s.IsOut())
+	}
+	if s.EventID() != 1644175362 {
+		t.Errorf("Unexpected value for EventID: %v", s.EventID())
+	}
+	if s.HasDuration() != true {
+		t.Errorf("Unexpected value for HasDuration: %v", s.HasDuration())
+	}
+	if s.Duration() != 8100000 {
+		t.Errorf("Unexpected value for Duration: %v", s.Duration())
+	}
+	if s.IsAutoReturn() != true {
+		t.Errorf("Unexpected value for IsAutoReturn: %v", s.IsAutoReturn())
+	}
+	if s.UniqueProgramId() != 821 {
+		t.Errorf("Unexpected value for UniqueProgramId: %v", s.UniqueProgramId())
+	}
+	if s.AvailNum() != 0 {
+		t.Errorf("Unexpected value for AvailNum: %v", s.AvailNum())
+	}
+	if s.AvailsExpected() != 0 {
+		t.Errorf("Unexpected value for AvailsExpected: %v", s.AvailsExpected())
 	}
 }
 
@@ -263,5 +294,39 @@ func TestSCTEMultipleDescriptors(t *testing.T) {
 	}
 	if descs[0].SCTE35() != descs[1].SCTE35() {
 		t.Error("SCTE obj of both descs is not the same")
+	}
+}
+
+func TestParseSegmentationDescriptor_EventCancelled(t *testing.T) {
+	base64Bytes, _ := base64.StdEncoding.DecodeString("APwwKwAATJCc6v//8AUG/vafrY0AFQIJQ1VFSQAAAAD/AAhDVUVJAAAAAEBlk0M=")
+
+	s, err := NewSCTE35(base64Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if s.Command() != TimeSignal {
+		t.Errorf("Invalid command found, expecting TimeSignal(6), got: %v", s.Command())
+	}
+
+	if !s.HasPTS() {
+		t.Error("Expecting PTS, but none found")
+	}
+
+	if s.PTS() != gots.PTS(5422205559) {
+		t.Errorf("Expected PTS 5422205559, got: %v", s.PTS())
+	}
+
+	if len(s.Descriptors()) != 1 {
+		t.Errorf("Expected 1 segmentation descriptor, got %d", s.Descriptors())
+	}
+
+	segmentationDescriptor := s.Descriptors()[0]
+	if segmentationDescriptor.TypeID() != SegDescNotIndicated {
+		t.Errorf("Expected segmentationtype Not Indicated, got %s", segmentationDescriptor.TypeID())
+	}
+
+	if !segmentationDescriptor.IsEventCanceled() {
+		t.Error("Expected event to be canceled.")
 	}
 }

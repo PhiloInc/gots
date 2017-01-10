@@ -70,6 +70,9 @@ type spliceInsert struct {
 	hasDuration           bool
 	duration              gots.PTS
 	autoReturn            bool
+	uniqueProgramId       uint16
+	availNum              uint8
+	availsExpected        uint8
 }
 
 func (c *spliceInsert) CommandType() SpliceCommandType {
@@ -87,30 +90,26 @@ func parseSpliceInsert(buf *bytes.Buffer) (*spliceInsert, error) {
 }
 
 func (c *spliceInsert) parse(buf *bytes.Buffer) error {
-	if buf.Len() < 5 { // length of required fields
+	baseFields := buf.Next(5)
+	if len(baseFields) < 5 { // length of required fields
 		return gots.ErrInvalidSCTE35Length
 	}
-	// shortcut for required fields b/c length checked
-	readByte := func() byte {
-		b, _ := buf.ReadByte()
-		return b
-	}
-	c.eventID = binary.BigEndian.Uint32(buf.Next(4))
-	//   splice_event_cancel_indicator 1
-	//   reserved 7
-	c.eventCancelIndicator = readByte()&0x80 == 0x80
+	c.eventID = binary.BigEndian.Uint32(baseFields[:4])
+	// splice_event_cancel_indicator 1
+	// reserved 7
+	c.eventCancelIndicator = baseFields[4]&0x80 == 0x80
 	if c.eventCancelIndicator {
 		return nil
-	}
-	if buf.Len() < 5 { // remaining length required fields
-		return gots.ErrInvalidSCTE35Length
 	}
 	// out_of_network_indicator 1
 	// program_splice_flag 1
 	// duration_flag 1
 	// splice_immediate_flag 1
 	// reserved 4
-	flags := readByte()
+	flags, err := buf.ReadByte()
+	if err != nil {
+		return gots.ErrInvalidSCTE35Length
+	}
 	c.outOfNetworkIndicator = flags&0x80 == 0x80
 	isProgramSplice := flags&0x40 == 0x40
 	c.hasDuration = flags&0x20 == 0x20
@@ -118,14 +117,14 @@ func (c *spliceInsert) parse(buf *bytes.Buffer) error {
 
 	if isProgramSplice && !spliceImmediate {
 		hasPTS, pts, err := parseSpliceTime(buf)
+		if err != nil {
+			return err
+		}
 		if !hasPTS {
 			return gots.ErrSCTE35UnsupportedSpliceCommand
 		}
 		c.hasPTS = hasPTS
 		c.pts = pts
-		if err != nil {
-			return err
-		}
 	}
 	if !isProgramSplice {
 		cc, err := buf.ReadByte()
@@ -154,12 +153,13 @@ func (c *spliceInsert) parse(buf *bytes.Buffer) error {
 		c.autoReturn = data[0]&0x80 == 0x80
 		c.duration = uint40(data) & 0x01ffffffff
 	}
-	// unique_program_id
-	binary.BigEndian.Uint16(buf.Next(2))
-	// avail_num
-	readByte()
-	// avails_expected
-	readByte()
+	progInfo := buf.Next(4)
+	if len(progInfo) < 4 {
+		return gots.ErrInvalidSCTE35Length
+	}
+	c.uniqueProgramId = binary.BigEndian.Uint16(progInfo[:2])
+	c.availNum = progInfo[2]
+	c.availsExpected = progInfo[3]
 	return nil
 }
 
@@ -167,11 +167,11 @@ func (c *spliceInsert) EventID() uint32 {
 	return c.eventID
 }
 
-func (c *spliceInsert) OutOfNetworkIndicator() bool {
+func (c *spliceInsert) IsOut() bool {
 	return c.outOfNetworkIndicator
 }
 
-func (c *spliceInsert) EventCancelIndicator() bool {
+func (c *spliceInsert) IsEventCanceled() bool {
 	return c.eventCancelIndicator
 }
 
@@ -191,8 +191,20 @@ func (c *spliceInsert) Duration() gots.PTS {
 	return c.duration
 }
 
-func (c *spliceInsert) AutoReturn() bool {
+func (c *spliceInsert) IsAutoReturn() bool {
 	return c.autoReturn
+}
+
+func (c *spliceInsert) UniqueProgramId() uint16 {
+	return c.uniqueProgramId
+}
+
+func (c *spliceInsert) AvailNum() uint8 {
+	return c.availNum
+}
+
+func (c *spliceInsert) AvailsExpected() uint8 {
+	return c.availsExpected
 }
 
 // parseSpliceTime parses a splice_time() structure and returns the values of
