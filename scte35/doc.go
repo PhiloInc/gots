@@ -177,6 +177,8 @@ type SegmentationDescriptor interface {
 	UPIDType() SegUPIDType
 	// UPID returns the upid of the descriptor
 	UPID() []byte
+	// SegmentNum returns the segment_num descriptor field
+	SegmentNum() uint8
 	// CanClose returns true if this descriptor can close the passed in descriptor
 	CanClose(out SegmentationDescriptor) bool
 	// Equal returns true/false if segmentation descriptor is functionally
