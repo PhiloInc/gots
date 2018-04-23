@@ -201,6 +201,10 @@ func (d *segmentationDescriptor) UPID() []byte {
 	return d.upid
 }
 
+func (d *segmentationDescriptor) SegmentNum() uint8 {
+	return d.segNum
+}
+
 func (d *segmentationDescriptor) CanClose(out SegmentationDescriptor) bool {
 	inRules, ok := segCloseRules[d.TypeID()]
 	// No rules associated with this signal means it can't close anything
