@@ -32,9 +32,9 @@ import (
 )
 
 // Sync finds the offset of the next packet sync byte and advances the reader
-// to the packet start. It also checks the next 188th byte to ensure a sync is
-// found. It returns the offset of the sync w.r.t. the original reader
-// position.
+// to the packet start. It also checks whether there is at least one packet's
+// worth of data following the sync byte.
+// It returns the offset of the sync w.r.t. the original reader position.
 func Sync(r *bufio.Reader) (int64, error) {
 	for i := int64(0); ; i++ {
 		data, err := r.Peek(1)
