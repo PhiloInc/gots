@@ -36,9 +36,8 @@ import (
 // found. It returns the offset of the sync w.r.t. the original reader
 // position.
 func Sync(r *bufio.Reader) (int64, error) {
-	data := make([]byte, 1)
 	for i := int64(0); ; i++ {
-		_, err := io.ReadFull(r, data)
+		data, err := r.Peek(1)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			break
 		}
@@ -46,19 +45,18 @@ func Sync(r *bufio.Reader) (int64, error) {
 			return 0, err
 		}
 		if int(data[0]) == SyncByte {
-			// check next 188th byte
-			rp := bufio.NewReaderSize(r, PacketSize) // extends only if needed
-			nextData, err := rp.Peek(PacketSize)
+			// Make sure there is a full TS packet
+			_, err := r.Peek(PacketSize)
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
 			if err != nil {
 				return 0, err
 			}
-			if nextData[187] == SyncByte {
-				r.UnreadByte()
-				return i, nil
-			}
+			return i, nil
+		} else {
+			// Sync byte not found, so advance read pointer
+			r.ReadByte()
 		}
 	}
 	return 0, gots.ErrSyncByteNotFound
